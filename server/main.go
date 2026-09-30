@@ -1,0 +1,72 @@
+package main
+
+import (
+	"crypto/ed25519"
+	"encoding/hex"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const targetMAC = "9C:6B:00:3D:25:6D"
+
+func main() {
+
+	pubKeyHex := "" // Read from ./.public-key
+	pubBytes, _ := hex.DecodeString(pubKeyHex)
+	pubKey := ed25519.PublicKey(pubBytes)
+
+	http.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
+		tsStr := r.Header.Get("X-Timestamp")
+		sigHex := r.Header.Get("X-Signature")
+
+		// Replay Protection: Ensure request was generated within the last 60 seconds
+		ts, err := strconv.ParseInt(tsStr, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid timestamp", http.StatusBadRequest)
+			return
+		}
+
+		reqTime := time.Unix(ts, 0)
+		if time.Since(reqTime) > 60*time.Second || time.Since(reqTime) < -60*time.Second {
+			http.Error(w, "Request expired (Replay protection)", http.StatusUnauthorized)
+			return
+		}
+
+		// Cryptographic Verification
+		sigBytes, err := hex.DecodeString(sigHex)
+		if err != nil || !ed25519.Verify(pubKey, []byte(tsStr), sigBytes) {
+			http.Error(w, "Invalid signature", http.StatusUnauthorized)
+			return
+		}
+
+		if err := sendMagicPacket(targetMAC); err != nil {
+			http.Error(w, "WOL broadcast failed", http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
+	})
+	http.ListenAndServe(":8080", nil)
+}
+
+func sendMagicPacket(mac string) error {
+	mac = strings.ReplaceAll(mac, ":", "")
+	hw, _ := hex.DecodeString(mac)
+	packet := make([]byte, 6+16*len(hw))
+	for i := range 6 {
+		packet[i] = 0xFF
+	}
+	for i := 1; i <= 16; i++ {
+		copy(packet[6+(i-1)*len(hw):], hw)
+	}
+	addr, _ := net.ResolveUDPAddr("udp", "255.255.255.255:9")
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.Write(packet)
+	return err
+}
