@@ -1,3 +1,3 @@
-module WakeOnWanRelayClientGo
+module wake-on-wan-relay/client
 
 go 1.27.1
