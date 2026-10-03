@@ -1,0 +1,15 @@
+[Unit]
+Description=Wake-on-WAN TLS Relay
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wake-on-wan-relay
+ExecStart=/opt/wake-on-wan-relay/build/server
+Restart=on-failure
+RestartSec=5
+# Runs as an unprivileged user since port 8443 does not require root
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target
