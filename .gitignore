@@ -3,7 +3,7 @@
 **/bin
 
 build/
-config.json
+./config.json
 
 cert.pem
 key.pem

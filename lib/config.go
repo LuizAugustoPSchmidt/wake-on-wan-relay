@@ -21,10 +21,11 @@ func GetProjectRoot() string {
 }
 
 type Context struct {
-	MacAddress string `json:"macAddress"`
-	PrivateKey string `json:"privateKey"`
-	PublicKey  string `json:"publicKey"`
-	Version    string
+	MacAddress   string `json:"macAddress"`
+	PrivateKey   string `json:"privateKey"`
+	PublicKey    string `json:"publicKey"`
+	ExternalAddr string `json:"externalAddress"`
+	Version      string
 }
 
 func GetContext() *Context {
