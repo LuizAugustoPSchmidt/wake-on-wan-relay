@@ -1,6 +1,8 @@
 [Unit]
 Description=Wake-on-WAN TLS Relay
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple

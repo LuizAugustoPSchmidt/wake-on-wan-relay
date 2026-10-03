@@ -25,6 +25,8 @@ type Context struct {
 	PrivateKey   string `json:"privateKey"`
 	PublicKey    string `json:"publicKey"`
 	ExternalAddr string `json:"externalAddress"`
+	CertPath     string `json:"certPath"`
+	KeyPath      string `json:"keyPath"`
 	Version      string
 }
 

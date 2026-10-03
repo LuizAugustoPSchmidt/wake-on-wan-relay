@@ -33,15 +33,21 @@ func run(context *config.Context) {
 	pubBytes, _ := hex.DecodeString(pubKeyHex)
 	pubKey := ed25519.PublicKey(pubBytes)
 
-	keyCertPath, err := filepath.Abs("../key.pem")
-	if err != nil {
-		log.Fatalf("Failed to read Certificate Key: %s\n", err.Error())
+	certPath := context.CertPath
+	if certPath == "" {
+		certPath = filepath.Join(config.GetProjectRoot(), "cert.pem")
+	} else if !filepath.IsAbs(certPath) {
+		certPath = filepath.Join(config.GetProjectRoot(), certPath)
 	}
 
-	certPath, err := filepath.Abs("../cert.pem")
-	if err != nil {
-		log.Fatalf("Failed to read Certificate: %s\n", err.Error())
+	keyPath := context.KeyPath
+	if keyPath == "" {
+		keyPath = filepath.Join(config.GetProjectRoot(), "key.pem")
+	} else if !filepath.IsAbs(keyPath) {
+		keyPath = filepath.Join(config.GetProjectRoot(), keyPath)
 	}
+
+	log.Printf("Starting TLS server on :8443 (cert: %s, key: %s)\n", certPath, keyPath)
 
 	http.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received /wake call")
@@ -76,7 +82,7 @@ func run(context *config.Context) {
 		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
 	})
 
-	err = http.ListenAndServeTLS(":8443", certPath, keyCertPath, nil)
+	err := http.ListenAndServeTLS(":8443", certPath, keyPath, nil)
 	if err != nil {
 		log.Fatalf("%s\n", err.Error())
 	}

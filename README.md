@@ -27,6 +27,10 @@ And fill it with the relevant informations. Namely, are obrigatory:
     - PrivateKey
     - MAC Address
 
+Optional fields:
+    - certPath (default: cert.pem in project root)
+    - keyPath (default: key.pem in project root)
+
 You can generate a key pair in the right format by running, after build:
 
 ```bash

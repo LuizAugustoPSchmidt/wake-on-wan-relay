@@ -2,5 +2,7 @@
 	"externalAddress":"",
 	"macAddress": "",
 	"publicKey": "",
-	"privateKey": ""
+	"privateKey": "",
+	"certPath": "cert.pem",
+	"keyPath": "key.pem"
 }
