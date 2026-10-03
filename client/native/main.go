@@ -13,9 +13,6 @@ import (
 	config "wake-on-wan-relay/lib"
 )
 
-// Replace with the generated Private key hex string
-const serverURL = "https://lapschmidt.duckdns.org/wake"
-
 func main() {
 	context := config.GetContext()
 	if slices.Contains(os.Args, "--version") {
@@ -27,6 +24,8 @@ func main() {
 }
 
 func run(context *config.Context) {
+	serverURL := context.ExternalAddr
+
 	privKeyHex := context.PrivateKey
 
 	privBytes, _ := hex.DecodeString(privKeyHex)

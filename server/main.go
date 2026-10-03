@@ -14,8 +14,6 @@ import (
 	config "wake-on-wan-relay/lib"
 )
 
-const targetMAC = "9C:6B:00:3D:25:6D"
-
 func main() {
 	context := config.GetContext()
 
@@ -27,6 +25,8 @@ func main() {
 }
 
 func run(context *config.Context) {
+	targetMAC := context.MacAddress
+
 	pubKeyHex := context.PublicKey
 
 	pubBytes, _ := hex.DecodeString(pubKeyHex)
