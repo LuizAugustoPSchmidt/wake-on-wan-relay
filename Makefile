@@ -9,29 +9,31 @@ BINDIR ?= $(PREFIX)/bin
 DOCKER_IMAGE ?= wake-on-wan-relay
 DOCKER_TAG ?= latest
 DOCKER_CONTAINER ?= wake-on-wan-relay
+DOCKER_BIN ?= /usr/bin/docker
 
 define SYSTEMD_UNIT
 [Unit]
-Description=Wake-on-WAN TLS Relay
-After=network.target
+Description=Wake-on-WAN TLS Relay (Docker)
+After=network.target docker.service
+Requires=docker.service
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
 Type=simple
-WorkingDirectory=$(SERVER_DIR)
-ExecStart=$(SERVER_DIR)/build/server
 Restart=on-failure
 RestartSec=5
-User=$(SERVER_USER)
-Group=$(SERVER_GROUP)
+ExecStartPre=-$(DOCKER_BIN) stop $(DOCKER_CONTAINER)
+ExecStartPre=-$(DOCKER_BIN) rm $(DOCKER_CONTAINER)
+ExecStart=$(DOCKER_BIN) run --name $(DOCKER_CONTAINER) --net=host -v $(SERVER_DIR)/config.json:/app/config.json:ro -v $(SERVER_DIR)/cert.pem:/app/cert.pem:ro -v $(SERVER_DIR)/key.pem:/app/key.pem:ro $(DOCKER_IMAGE):$(DOCKER_TAG)
+ExecStop=-$(DOCKER_BIN) stop $(DOCKER_CONTAINER)
 
 [Install]
 WantedBy=multi-user.target
 endef
 export SYSTEMD_UNIT
 
-.PHONY: all build build-server build-client build-keygen deploy-server install-client clean \
+.PHONY: all build build-server build-client build-keygen deploy-server deploy-server-native install-client clean \
         docker-build docker-run docker-stop docker-restart docker-logs docker-status
 
 all: build
@@ -52,7 +54,34 @@ build-keygen:
 	mkdir -p build
 	GOBIN=$(PWD)/build go install ./keypair-generator
 
-deploy-server: build-server
+deploy-server: docker-build
+	@if [ ! -f config.json ]; then \
+		echo "Error: config.json not found! Copy example-config.json to config.json and configure it before deploying."; \
+		exit 1; \
+	fi
+	sudo mkdir -p $(SERVER_DIR)
+	sudo cp config.json $(SERVER_DIR)/config.json
+	sudo chmod 644 $(SERVER_DIR)/config.json
+	@if [ -f cert.pem ]; then \
+		sudo cp cert.pem $(SERVER_DIR)/cert.pem; \
+		sudo chmod 644 $(SERVER_DIR)/cert.pem; \
+	elif [ ! -f $(SERVER_DIR)/cert.pem ]; then \
+		sudo touch $(SERVER_DIR)/cert.pem; \
+		sudo chmod 644 $(SERVER_DIR)/cert.pem; \
+	fi
+	@if [ -f key.pem ]; then \
+		sudo cp key.pem $(SERVER_DIR)/key.pem; \
+		sudo chmod 644 $(SERVER_DIR)/key.pem; \
+	elif [ ! -f $(SERVER_DIR)/key.pem ]; then \
+		sudo touch $(SERVER_DIR)/key.pem; \
+		sudo chmod 644 $(SERVER_DIR)/key.pem; \
+	fi
+	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
+	@echo "$$SYSTEMD_UNIT" | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
+	sudo chmod 644 $(SYSTEMD_DIR)/$(SERVICE_FILE)
+	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
+
+deploy-server-native: build-server
 	@if [ ! -f config.json ]; then \
 		echo "Error: config.json not found! Copy example-config.json to config.json and configure it before deploying."; \
 		exit 1; \
@@ -68,8 +97,6 @@ deploy-server: build-server
 		sudo cp key.pem $(SERVER_DIR)/key.pem; \
 	fi
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
-	@echo "$$SYSTEMD_UNIT" | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
-	sudo chmod 644 $(SYSTEMD_DIR)/$(SERVICE_FILE)
 	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
 
 install-client: build-client
