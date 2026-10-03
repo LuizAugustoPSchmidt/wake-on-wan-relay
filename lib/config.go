@@ -8,7 +8,7 @@ import (
 	"runtime"
 )
 
-const VERSION = "0.1.2"
+const VERSION = "0.1.3"
 
 func GetProjectRoot() string {
 	_, filename, _, ok := runtime.Caller(0)
