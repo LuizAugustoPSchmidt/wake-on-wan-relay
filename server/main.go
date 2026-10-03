@@ -11,25 +11,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	config "wake-on-wan-relay/lib"
 )
 
 const targetMAC = "9C:6B:00:3D:25:6D"
 
 func main() {
+	context := config.GetContext()
+
 	if slices.Contains(os.Args, "--version") {
-		log.Println("wake-on-wan-relay/server v0.0.1")
+		log.Printf("wake-on-wan-relay/server v%s\n", context.Version)
 		return
 	}
-	run()
+	run(context)
 }
 
-func run() {
-	pubKeyRaw, err := os.ReadFile("./.public-key")
-	if err != nil {
-		log.Fatalf("Failed to read public key")
-	}
+func run(context *config.Context) {
+	pubKeyHex := context.PublicKey
 
-	pubKeyHex := string(pubKeyRaw)
 	pubBytes, _ := hex.DecodeString(pubKeyHex)
 	pubKey := ed25519.PublicKey(pubBytes)
 

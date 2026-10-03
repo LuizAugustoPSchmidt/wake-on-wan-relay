@@ -6,10 +6,13 @@ import (
 	"os"
 )
 
+const VERSION = "0.0.1"
+
 type Context struct {
+	MacAddress string `json:"macAddress"`
 	PrivateKey string `json:"privateKey"`
 	PublicKey  string `json:"publicKey"`
-	Version    string `json:"version"`
+	Version    string
 }
 
 func GetContext() *Context {
@@ -24,6 +27,8 @@ func GetContext() *Context {
 	if err != nil {
 		log.Fatalf("Failed to unmarshal config. Check if it is valid json")
 	}
+
+	context.Version = VERSION
 
 	return context
 }

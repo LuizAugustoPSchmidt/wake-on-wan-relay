@@ -9,26 +9,24 @@ import (
 	"os"
 	"slices"
 	"time"
+	config "wake-on-wan-relay/lib"
 )
 
 // Replace with the generated Private key hex string
 const serverURL = "http://lapschmidt.duckdns.org/wake"
 
 func main() {
+	context := config.GetContext()
 	if slices.Contains(os.Args, "--version") {
-		log.Println("wake-on-wan-relay/client v0.0.1")
+		log.Printf("wake-on-wan-relay/client v%s\n", context.Version)
 		return
 	}
-	run()
+
+	run(context)
 }
 
-func run() {
-	privKeyRaw, err := os.ReadFile("./.private-key")
-	if err != nil {
-		log.Fatalf("Failed to read private key")
-	}
-
-	privKeyHex := string(privKeyRaw)
+func run(context *config.Context) {
+	privKeyHex := context.PrivateKey
 
 	privBytes, _ := hex.DecodeString(privKeyHex)
 	privKey := ed25519.PrivateKey(privBytes)
