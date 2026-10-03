@@ -6,6 +6,10 @@ SERVER_GROUP ?= 1000
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 
+DOCKER_IMAGE ?= wake-on-wan-relay
+DOCKER_TAG ?= latest
+DOCKER_CONTAINER ?= wake-on-wan-relay
+
 define SYSTEMD_UNIT
 [Unit]
 Description=Wake-on-WAN TLS Relay
@@ -27,7 +31,8 @@ WantedBy=multi-user.target
 endef
 export SYSTEMD_UNIT
 
-.PHONY: all build build-server build-client build-keygen deploy-server install-client clean
+.PHONY: all build build-server build-client build-keygen deploy-server install-client clean \
+        docker-build docker-run docker-stop docker-restart docker-logs docker-status
 
 all: build
 
@@ -76,6 +81,32 @@ install-client: build-client
 		sudo ln -sf wake-client $(BINDIR)/client; \
 	fi
 	@echo "Client installed to $(BINDIR)/wake-client (symlinked as wake-on-wan-client)."
+
+docker-build:
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+docker-run:
+	@if [ ! -f config.json ]; then \
+		echo "Error: config.json not found! Copy example-config.json to config.json and configure it first."; \
+		exit 1; \
+	fi
+	@RUN_ARGS="-d --name $(DOCKER_CONTAINER) --restart unless-stopped --net host -v $(PWD)/config.json:/app/config.json:ro"; \
+	if [ -f cert.pem ]; then RUN_ARGS="$$RUN_ARGS -v $(PWD)/cert.pem:/app/cert.pem:ro"; fi; \
+	if [ -f key.pem ]; then RUN_ARGS="$$RUN_ARGS -v $(PWD)/key.pem:/app/key.pem:ro"; fi; \
+	echo "Starting container $(DOCKER_CONTAINER)..."; \
+	docker run $$RUN_ARGS $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+docker-stop:
+	-docker stop $(DOCKER_CONTAINER)
+	-docker rm $(DOCKER_CONTAINER)
+
+docker-restart: docker-stop docker-run
+
+docker-logs:
+	docker logs -f $(DOCKER_CONTAINER)
+
+docker-status:
+	docker ps -a --filter name=$(DOCKER_CONTAINER)
 
 clean:
 	rm -rf build

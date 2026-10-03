@@ -16,12 +16,12 @@ import (
 )
 
 func main() {
-	context := config.GetContext()
-
 	if slices.Contains(os.Args, "--version") {
-		log.Printf("wake-on-wan-relay/server v%s\n", context.Version)
+		log.Printf("wake-on-wan-relay/server v%s\n", config.VERSION)
 		return
 	}
+
+	context := config.GetContext()
 	run(context)
 }
 

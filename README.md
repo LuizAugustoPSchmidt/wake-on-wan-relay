@@ -56,4 +56,30 @@ Install the native client into `/usr/local/bin` (as `wake-client` / `wake-on-wan
 make install-client
 ```
 
+### Docker Deployment
+
+You can build and manage the Docker container using Make:
+
+```bash
+# Build the Docker image
+make docker-build
+
+# Run the container (uses --net=host for Wake-on-LAN broadcasts)
+make docker-run
+
+# View logs / status
+make docker-logs
+make docker-status
+
+# Stop / restart
+make docker-stop
+make docker-restart
+```
+
+Alternatively, you can run directly with `docker compose`:
+
+```bash
+docker compose up -d
+```
+
 

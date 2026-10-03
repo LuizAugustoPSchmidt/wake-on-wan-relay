@@ -1,0 +1,6 @@
+.git
+build
+*.pem
+config.json
+.private-key
+.public-key

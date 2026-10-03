@@ -1,0 +1,12 @@
+services:
+  wake-on-wan-relay:
+    build: .
+    image: wake-on-wan-relay:latest
+    container_name: wake-on-wan-relay
+    restart: unless-stopped
+    # Host networking is required for WOL UDP broadcast packets to reach physical LAN
+    network_mode: host
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./cert.pem:/app/cert.pem:ro
+      - ./key.pem:/app/key.pem:ro

@@ -11,13 +11,20 @@ import (
 const VERSION = "0.1.3"
 
 func GetProjectRoot() string {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		log.Fatalf("Something went so wrong that it wasn't possible to fetch this filetype")
+	if root := os.Getenv("PROJECT_ROOT"); root != "" {
+		return root
 	}
-
-	return filepath.Dir(filepath.Dir(filename))
-
+	if pwd, err := os.Getwd(); err == nil {
+		if _, err := os.Stat(filepath.Join(pwd, "config.json")); err == nil {
+			return pwd
+		}
+	}
+	_, filename, _, ok := runtime.Caller(0)
+	if ok {
+		return filepath.Dir(filepath.Dir(filename))
+	}
+	pwd, _ := os.Getwd()
+	return pwd
 }
 
 type Context struct {
@@ -33,9 +40,18 @@ type Context struct {
 func GetContext() *Context {
 	context := new(Context)
 
-	contextRaw, err := os.ReadFile(GetProjectRoot() + "/config.json")
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		if _, err := os.Stat("config.json"); err == nil {
+			configPath = "config.json"
+		} else {
+			configPath = filepath.Join(GetProjectRoot(), "config.json")
+		}
+	}
+
+	contextRaw, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Fatalf("Failed to read config")
+		log.Fatalf("Failed to read config from %s: %v", configPath, err)
 	}
 
 	err = json.Unmarshal(contextRaw, context)
