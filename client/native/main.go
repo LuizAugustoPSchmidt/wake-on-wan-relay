@@ -15,6 +15,7 @@ import (
 
 func main() {
 	context := config.GetContext()
+
 	if slices.Contains(os.Args, "--version") {
 		log.Printf("wake-on-wan-relay/client v%s\n", context.Version)
 		return

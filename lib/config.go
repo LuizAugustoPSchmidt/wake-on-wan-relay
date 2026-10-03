@@ -6,9 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
-const VERSION = "0.1.3"
+var VERSION = "0.1.3"
 
 func GetProjectRoot() string {
 	if root := os.Getenv("PROJECT_ROOT"); root != "" {
@@ -59,7 +60,7 @@ func GetContext() *Context {
 		log.Fatalf("Failed to unmarshal config. Check if it is valid json")
 	}
 
-	context.Version = VERSION
+	context.Version = strings.TrimPrefix(VERSION, "v")
 
 	return context
 }

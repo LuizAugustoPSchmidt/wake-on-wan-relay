@@ -6,8 +6,15 @@ SERVER_GROUP ?= 1000
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 
+# Version extraction from Git
+GIT_TAG ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.3")
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_DIRTY ?= $(shell git diff --quiet 2>/dev/null || echo "-dirty")
+VERSION ?= $(shell git describe --tags --dirty 2>/dev/null || echo "$(GIT_TAG)-dev+$(GIT_COMMIT)$(GIT_DIRTY)")
+LDFLAGS := -X 'wake-on-wan-relay/lib.VERSION=$(VERSION)'
+
 DOCKER_IMAGE ?= wake-on-wan-relay
-DOCKER_TAG ?= latest
+DOCKER_TAG ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "latest")
 DOCKER_CONTAINER ?= wake-on-wan-relay
 DOCKER_BIN ?= /usr/bin/docker
 
@@ -34,25 +41,26 @@ endef
 export SYSTEMD_UNIT
 
 .PHONY: all build build-server build-client build-keygen deploy-server deploy-server-native install-client clean \
-        docker-build docker-run docker-stop docker-restart docker-logs docker-status
+        docker-build docker-run docker-stop docker-restart docker-logs docker-status \
+        version tag-patch tag-minor tag-major
 
 all: build
 
 build:
 	mkdir -p build
-	GOBIN=$(PWD)/build go install ./client/native ./keypair-generator ./server
+	GOBIN=$(PWD)/build go install -ldflags="$(LDFLAGS)" ./client/native ./keypair-generator ./server
 
 build-server:
 	mkdir -p build
-	GOBIN=$(PWD)/build go install ./server
+	GOBIN=$(PWD)/build go install -ldflags="$(LDFLAGS)" ./server
 
 build-client:
 	mkdir -p build
-	GOBIN=$(PWD)/build go install ./client/native
+	GOBIN=$(PWD)/build go install -ldflags="$(LDFLAGS)" ./client/native
 
 build-keygen:
 	mkdir -p build
-	GOBIN=$(PWD)/build go install ./keypair-generator
+	GOBIN=$(PWD)/build go install -ldflags="$(LDFLAGS)" ./keypair-generator
 
 deploy-server: docker-build
 	@if [ ! -f config.json ]; then \
@@ -110,7 +118,7 @@ install-client: build-client
 	@echo "Client installed to $(BINDIR)/wake-client (symlinked as wake-on-wan-client)."
 
 docker-build:
-	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):$(DOCKER_TAG) -t $(DOCKER_IMAGE):latest .
 
 docker-run:
 	@if [ ! -f config.json ]; then \
@@ -134,6 +142,34 @@ docker-logs:
 
 docker-status:
 	docker ps -a --filter name=$(DOCKER_CONTAINER)
+
+version:
+	@echo "Build Version:  $(VERSION)"
+	@echo "Latest Git Tag: $(GIT_TAG)"
+
+tag-patch:
+	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.3"); \
+	RAW="$${TAG#v}"; IFS="." read -r MA MI PA <<< "$$RAW"; \
+	NEXT="v$$MA.$$MI.$$((PA+1))"; \
+	echo "Tagging $$TAG -> $$NEXT"; \
+	git tag -a "$$NEXT" -m "Release $$NEXT"; \
+	echo "Created tag $$NEXT."
+
+tag-minor:
+	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.3"); \
+	RAW="$${TAG#v}"; IFS="." read -r MA MI PA <<< "$$RAW"; \
+	NEXT="v$$MA.$$((MI+1)).0"; \
+	echo "Tagging $$TAG -> $$NEXT"; \
+	git tag -a "$$NEXT" -m "Release $$NEXT"; \
+	echo "Created tag $$NEXT."
+
+tag-major:
+	@TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.3"); \
+	RAW="$${TAG#v}"; IFS="." read -r MA MI PA <<< "$$RAW"; \
+	NEXT="v$$((MA+1)).0.0"; \
+	echo "Tagging $$TAG -> $$NEXT"; \
+	git tag -a "$$NEXT" -m "Release $$NEXT"; \
+	echo "Created tag $$NEXT."
 
 clean:
 	rm -rf build

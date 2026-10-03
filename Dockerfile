@@ -14,8 +14,10 @@ COPY keypair-generator/go.mod keypair-generator/
 COPY lib/ lib/
 COPY server/ server/
 
+ARG VERSION=0.1.3
+
 # Build static binary
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/server ./server
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X 'wake-on-wan-relay/lib.VERSION=${VERSION}'" -o /out/server ./server
 
 # Runtime stage
 FROM alpine:latest
