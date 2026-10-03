@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -13,7 +14,7 @@ import (
 )
 
 // Replace with the generated Private key hex string
-const serverURL = "http://lapschmidt.duckdns.org/wake"
+const serverURL = "https://lapschmidt.duckdns.org/wake"
 
 func main() {
 	context := config.GetContext()
@@ -39,7 +40,11 @@ func run(context *config.Context) {
 	req.Header.Set("X-Timestamp", tsStr)
 	req.Header.Set("X-Signature", hex.EncodeToString(sig))
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second, Transport: transport}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Connection Error:", err)
