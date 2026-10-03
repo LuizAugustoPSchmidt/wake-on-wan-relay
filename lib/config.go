@@ -4,9 +4,21 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 )
 
-const VERSION = "0.0.1"
+const VERSION = "0.1.0"
+
+func GetProjectRoot() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatalf("Something went so wrong that it wasn't possible to fetch this filetype")
+	}
+
+	return filepath.Dir(filepath.Dir(filename))
+
+}
 
 type Context struct {
 	MacAddress string `json:"macAddress"`
@@ -18,7 +30,7 @@ type Context struct {
 func GetContext() *Context {
 	context := new(Context)
 
-	contextRaw, err := os.ReadFile("../config.json")
+	contextRaw, err := os.ReadFile(GetProjectRoot() + "/config.json")
 	if err != nil {
 		log.Fatalf("Failed to read config")
 	}

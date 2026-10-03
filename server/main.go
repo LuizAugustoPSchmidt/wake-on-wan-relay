@@ -63,7 +63,7 @@ func run(context *config.Context) {
 		}
 		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
 	})
-	http.ListenAndServeTLS(":8443", "cert.pem", "key.pem", nil)
+	http.ListenAndServeTLS(":8443", config.GetProjectRoot()+"/cert.pem", config.GetProjectRoot()+"/key.pem", nil)
 }
 
 func sendMagicPacket(mac string) error {
