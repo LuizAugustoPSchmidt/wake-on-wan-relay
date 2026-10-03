@@ -65,7 +65,7 @@ func run(context *config.Context) {
 		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
 	})
 
-	err := http.ListenAndServeTLS(":8443", config.GetProjectRoot()+"/cert.pem", config.GetProjectRoot()+"/key.pem", nil)
+	err := http.ListenAndServeTLS(":8443", "../cert.pem", "../key.pem", nil)
 	if err != nil {
 		log.Fatalf("%s\n", err.Error())
 	}
