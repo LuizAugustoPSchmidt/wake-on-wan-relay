@@ -23,7 +23,12 @@ func main() {
 }
 
 func run() {
-	privKeyHex := "" // Read from ./.private-key
+	privKeyRaw, err := os.ReadFile("./.private-key")
+	if err != nil {
+		log.Fatalf("Failed to read private key")
+	}
+
+	privKeyHex := string(privKeyRaw)
 
 	privBytes, _ := hex.DecodeString(privKeyHex)
 	privKey := ed25519.PrivateKey(privBytes)
@@ -43,5 +48,6 @@ func run() {
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Println("Server Status:", resp.Status)
+
+	fmt.Println("Server Response Status:", resp.Status)
 }

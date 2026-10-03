@@ -34,17 +34,17 @@ func run() {
 	pubKey := ed25519.PublicKey(pubBytes)
 
 	http.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
-		tsStr := r.Header.Get("X-Timestamp")
+		timestampStr := r.Header.Get("X-Timestamp")
 		sigHex := r.Header.Get("X-Signature")
 
 		// Replay Protection: Ensure request was generated within the last 60 seconds
-		ts, err := strconv.ParseInt(tsStr, 10, 64)
+		timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
 		if err != nil {
 			http.Error(w, "Invalid timestamp", http.StatusBadRequest)
 			return
 		}
 
-		reqTime := time.Unix(ts, 0)
+		reqTime := time.Unix(timestamp, 0)
 		if time.Since(reqTime) > 60*time.Second || time.Since(reqTime) < -60*time.Second {
 			http.Error(w, "Request expired (Replay protection)", http.StatusUnauthorized)
 			return
@@ -52,8 +52,9 @@ func run() {
 
 		// Cryptographic Verification
 		sigBytes, err := hex.DecodeString(sigHex)
-		if err != nil || !ed25519.Verify(pubKey, []byte(tsStr), sigBytes) {
-			http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		if err != nil || !ed25519.Verify(pubKey, []byte(timestampStr), sigBytes) {
+			// Return 404 to try and lose potential attackers
+			http.Error(w, "Not Found", http.StatusNotFound)
 			return
 		}
 
