@@ -6,6 +6,27 @@ SERVER_GROUP ?= 1000
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 
+define SYSTEMD_UNIT
+[Unit]
+Description=Wake-on-WAN TLS Relay
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=$(SERVER_DIR)
+ExecStart=$(SERVER_DIR)/build/server
+Restart=on-failure
+RestartSec=5
+User=$(SERVER_USER)
+Group=$(SERVER_GROUP)
+
+[Install]
+WantedBy=multi-user.target
+endef
+export SYSTEMD_UNIT
+
 .PHONY: all build build-server build-client build-keygen deploy-server install-client clean
 
 all: build
@@ -42,9 +63,7 @@ deploy-server: build-server
 		sudo cp key.pem $(SERVER_DIR)/key.pem; \
 	fi
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
-	sudo sed -e 's|^User=.*|User=$(SERVER_USER)|' \
-	         -e 's|^Group=.*|Group=$(SERVER_GROUP)|' \
-	         $(SERVICE_FILE) | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
+	@echo "$$SYSTEMD_UNIT" | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
 	sudo chmod 644 $(SYSTEMD_DIR)/$(SERVICE_FILE)
 	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
 
