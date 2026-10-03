@@ -33,6 +33,7 @@ func run(context *config.Context) {
 	pubKey := ed25519.PublicKey(pubBytes)
 
 	http.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Received /wake call")
 		timestampStr := r.Header.Get("X-Timestamp")
 		sigHex := r.Header.Get("X-Signature")
 
@@ -63,7 +64,11 @@ func run(context *config.Context) {
 		}
 		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
 	})
-	http.ListenAndServeTLS(":8443", config.GetProjectRoot()+"/cert.pem", config.GetProjectRoot()+"/key.pem", nil)
+
+	err := http.ListenAndServeTLS(":8443", config.GetProjectRoot()+"/cert.pem", config.GetProjectRoot()+"/key.pem", nil)
+	if err != nil {
+		log.Fatalf("%s\n", err.Error())
+	}
 }
 
 func sendMagicPacket(mac string) error {
