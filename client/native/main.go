@@ -4,7 +4,10 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"slices"
 	"time"
 )
 
@@ -12,6 +15,14 @@ import (
 const serverURL = "http://lapschmidt.duckdns.org/wake"
 
 func main() {
+	if slices.Contains(os.Args, "--version") {
+		log.Println("wake-on-wan-relay/client v0.0.1")
+		return
+	}
+	run()
+}
+
+func run() {
 	privKeyHex := "" // Read from ./.private-key
 
 	privBytes, _ := hex.DecodeString(privKeyHex)

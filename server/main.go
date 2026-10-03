@@ -3,8 +3,11 @@ package main
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"log"
 	"net"
 	"net/http"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,8 +16,20 @@ import (
 const targetMAC = "9C:6B:00:3D:25:6D"
 
 func main() {
+	if slices.Contains(os.Args, "--version") {
+		log.Println("wake-on-wan-relay/server v0.0.1")
+		return
+	}
+	run()
+}
 
-	pubKeyHex := "" // Read from ./.public-key
+func run() {
+	pubKeyRaw, err := os.ReadFile("./.public-key")
+	if err != nil {
+		log.Fatalf("Failed to read public key")
+	}
+
+	pubKeyHex := string(pubKeyRaw)
 	pubBytes, _ := hex.DecodeString(pubKeyHex)
 	pubKey := ed25519.PublicKey(pubBytes)
 
