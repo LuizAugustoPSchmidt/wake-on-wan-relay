@@ -42,4 +42,18 @@ as that would compromise the system's safety. Instead, if you are generating the
 key pair on the server, copy the private key and send it in two halves to the 
 client machine, preferably over a secure medium.
 
+## Deployment
+
+Deploy the server as a systemd service (copies files to `/opt/wake-on-wan-relay` and enables `wake-on-wan-relay.service`):
+
+```bash
+make deploy-server
+```
+
+Install the native client into `/usr/local/bin` (as `wake-client` / `wake-on-wan-client`):
+
+```bash
+make install-client
+```
+
 
