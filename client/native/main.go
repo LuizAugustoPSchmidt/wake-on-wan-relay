@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -110,6 +111,34 @@ func buildTLSConfig(context *config.Context) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+func createWakeRequest(serverURL string, privKey ed25519.PrivateKey, v2Auth bool) (*http.Request, error) {
+	req, err := http.NewRequest("GET", serverURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	tsStr := fmt.Sprintf("%d", time.Now().Unix())
+	req.Header.Set("X-Timestamp", tsStr)
+
+	if v2Auth {
+		nonceBytes := make([]byte, 16)
+		if _, err := rand.Read(nonceBytes); err != nil {
+			return nil, fmt.Errorf("failed to generate nonce: %w", err)
+		}
+		nonce := hex.EncodeToString(nonceBytes)
+		req.Header.Set("X-Nonce", nonce)
+
+		v2Payload := fmt.Sprintf("v2:%s:%s:%s:%s", req.Method, req.URL.Path, tsStr, nonce)
+		sig := ed25519.Sign(privKey, []byte(v2Payload))
+		req.Header.Set("X-Signature", hex.EncodeToString(sig))
+	} else {
+		sig := ed25519.Sign(privKey, []byte(tsStr))
+		req.Header.Set("X-Signature", hex.EncodeToString(sig))
+	}
+
+	return req, nil
+}
+
 func run(context *config.Context) {
 	serverURL := context.ExternalAddr
 	if serverURL == "" {
@@ -123,17 +152,6 @@ func run(context *config.Context) {
 	}
 	privKey := ed25519.PrivateKey(privBytes)
 
-	// Sign the current Unix epoch time
-	tsStr := fmt.Sprintf("%d", time.Now().Unix())
-	sig := ed25519.Sign(privKey, []byte(tsStr))
-
-	req, err := http.NewRequest("GET", serverURL, nil)
-	if err != nil {
-		log.Fatalf("Failed to create HTTP request: %v", err)
-	}
-	req.Header.Set("X-Timestamp", tsStr)
-	req.Header.Set("X-Signature", hex.EncodeToString(sig))
-
 	tlsConfig, err := buildTLSConfig(context)
 	if err != nil {
 		log.Fatalf("TLS configuration error: %v", err)
@@ -142,14 +160,33 @@ func run(context *config.Context) {
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
-
 	client := &http.Client{Timeout: 5 * time.Second, Transport: transport}
-	resp, err := client.Do(req)
+
+	// 1. Attempt v2 authenticated request (nonce + method/path binding)
+	reqV2, err := createWakeRequest(serverURL, privKey, true)
+	if err != nil {
+		log.Fatalf("Failed to create v2 wake request: %v", err)
+	}
+
+	resp, err := client.Do(reqV2)
 	if err != nil {
 		fmt.Println("Connection Error:", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	// If server returned 404 (an older server that does not recognize v2 auth),
+	// automatically fallback to legacy v1 auth for backward compatibility.
+	if resp.StatusCode == http.StatusNotFound {
+		reqV1, err := createWakeRequest(serverURL, privKey, false)
+		if err == nil {
+			if retryResp, retryErr := client.Do(reqV1); retryErr == nil {
+				defer retryResp.Body.Close()
+				fmt.Println("Server Response Status:", retryResp.Status)
+				return
+			}
+		}
+	}
 
 	fmt.Println("Server Response Status:", resp.Status)
 }
