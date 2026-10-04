@@ -29,13 +29,30 @@ func GetProjectRoot() string {
 }
 
 type Context struct {
-	MacAddress   string `json:"macAddress"`
-	PrivateKey   string `json:"privateKey"`
-	PublicKey    string `json:"publicKey"`
-	ExternalAddr string `json:"externalAddress"`
-	CertPath     string `json:"certPath"`
-	KeyPath      string `json:"keyPath"`
-	Version      string
+	MacAddress      string `json:"macAddress"`
+	PrivateKey      string `json:"privateKey"`
+	PublicKey       string `json:"publicKey"`
+	ExternalAddr    string `json:"externalAddress"`
+	CertPath        string `json:"certPath"`
+	KeyPath         string `json:"keyPath"`
+	CACertPath      string `json:"caCertPath"`
+	CertFingerprint string `json:"certFingerprint"`
+	ServerName      string `json:"serverName"`
+	Version         string
+}
+
+// ResolvePath resolves a path relative to the project root if it is not absolute and does not exist in the working directory.
+func ResolvePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	return filepath.Join(GetProjectRoot(), path)
 }
 
 func GetContext() *Context {

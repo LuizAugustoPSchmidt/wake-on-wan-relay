@@ -30,6 +30,9 @@ And fill it with the relevant informations. Namely, are obrigatory:
 Optional fields:
     - certPath (default: cert.pem in project root)
     - keyPath (default: key.pem in project root)
+    - caCertPath (client-side path to CA or self-signed certificate; falls back to certPath if file exists)
+    - certFingerprint (client-side SHA-256 fingerprint for certificate pinning)
+    - serverName (client-side TLS SNI / hostname override if connecting via IP)
 
 You can generate a key pair in the right format by running, after build:
 

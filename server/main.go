@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/hex"
 	"log"
 	"net"
@@ -29,27 +30,26 @@ func run(context *config.Context) {
 	targetMAC := context.MacAddress
 
 	pubKeyHex := context.PublicKey
-
-	pubBytes, _ := hex.DecodeString(pubKeyHex)
+	pubBytes, err := hex.DecodeString(pubKeyHex)
+	if err != nil || len(pubBytes) != ed25519.PublicKeySize {
+		log.Fatalf("Invalid publicKey in config: expected %d-byte hex string\n", ed25519.PublicKeySize)
+	}
 	pubKey := ed25519.PublicKey(pubBytes)
 
-	certPath := context.CertPath
+	certPath := config.ResolvePath(context.CertPath)
 	if certPath == "" {
 		certPath = filepath.Join(config.GetProjectRoot(), "cert.pem")
-	} else if !filepath.IsAbs(certPath) {
-		certPath = filepath.Join(config.GetProjectRoot(), certPath)
 	}
 
-	keyPath := context.KeyPath
+	keyPath := config.ResolvePath(context.KeyPath)
 	if keyPath == "" {
 		keyPath = filepath.Join(config.GetProjectRoot(), "key.pem")
-	} else if !filepath.IsAbs(keyPath) {
-		keyPath = filepath.Join(config.GetProjectRoot(), keyPath)
 	}
 
 	log.Printf("Starting TLS server on :8443 (cert: %s, key: %s)\n", certPath, keyPath)
 
-	http.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received /wake call")
 		timestampStr := r.Header.Get("X-Timestamp")
 		sigHex := r.Header.Get("X-Signature")
@@ -82,8 +82,19 @@ func run(context *config.Context) {
 		w.Write([]byte("Authenticated. Magic packet broadcasted locally.\n"))
 	})
 
-	err := http.ListenAndServeTLS(":8443", certPath, keyPath, nil)
-	if err != nil {
+	server := &http.Server{
+		Addr:    ":8443",
+		Handler: mux,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	if err := server.ListenAndServeTLS(certPath, keyPath); err != nil {
 		log.Fatalf("%s\n", err.Error())
 	}
 }

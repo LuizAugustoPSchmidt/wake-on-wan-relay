@@ -1,8 +1,11 @@
 {
-	"externalAddress":"",
+	"externalAddress": "",
 	"macAddress": "",
 	"publicKey": "",
 	"privateKey": "",
 	"certPath": "cert.pem",
-	"keyPath": "key.pem"
+	"keyPath": "key.pem",
+	"caCertPath": "",
+	"certFingerprint": "",
+	"serverName": ""
 }
