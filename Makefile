@@ -32,7 +32,7 @@ Restart=on-failure
 RestartSec=5
 ExecStartPre=-$(DOCKER_BIN) stop $(DOCKER_CONTAINER)
 ExecStartPre=-$(DOCKER_BIN) rm $(DOCKER_CONTAINER)
-ExecStart=$(DOCKER_BIN) run --name $(DOCKER_CONTAINER) --net=host -v $(SERVER_DIR)/config.json:/app/config.json:ro -v $(SERVER_DIR)/cert.pem:/app/cert.pem:ro -v $(SERVER_DIR)/key.pem:/app/key.pem:ro $(DOCKER_IMAGE):$(DOCKER_TAG)
+ExecStart=$(DOCKER_BIN) run --name $(DOCKER_CONTAINER) --net=host --read-only --cap-drop=ALL --security-opt=no-new-privileges:true -v $(SERVER_DIR)/config.json:/app/config.json:ro -v $(SERVER_DIR)/cert.pem:/app/cert.pem:ro -v $(SERVER_DIR)/key.pem:/app/key.pem:ro $(DOCKER_IMAGE):$(DOCKER_TAG)
 ExecStop=-$(DOCKER_BIN) stop $(DOCKER_CONTAINER)
 
 [Install]
@@ -68,8 +68,9 @@ deploy-server: docker-build
 		exit 1; \
 	fi
 	sudo mkdir -p $(SERVER_DIR)
+	sudo chmod 700 $(SERVER_DIR)
 	sudo cp config.json $(SERVER_DIR)/config.json
-	sudo chmod 644 $(SERVER_DIR)/config.json
+	sudo chmod 600 $(SERVER_DIR)/config.json
 	@if [ -f cert.pem ]; then \
 		sudo cp cert.pem $(SERVER_DIR)/cert.pem; \
 		sudo chmod 644 $(SERVER_DIR)/cert.pem; \
@@ -79,10 +80,10 @@ deploy-server: docker-build
 	fi
 	@if [ -f key.pem ]; then \
 		sudo cp key.pem $(SERVER_DIR)/key.pem; \
-		sudo chmod 644 $(SERVER_DIR)/key.pem; \
+		sudo chmod 600 $(SERVER_DIR)/key.pem; \
 	elif [ ! -f $(SERVER_DIR)/key.pem ]; then \
 		sudo touch $(SERVER_DIR)/key.pem; \
-		sudo chmod 644 $(SERVER_DIR)/key.pem; \
+		sudo chmod 600 $(SERVER_DIR)/key.pem; \
 	fi
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
 	@echo "$$SYSTEMD_UNIT" | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
@@ -95,14 +96,18 @@ deploy-server-native: build-server
 		exit 1; \
 	fi
 	sudo mkdir -p $(SERVER_DIR)/build
+	sudo chmod 700 $(SERVER_DIR)
 	sudo cp build/server $(SERVER_DIR)/build/server
 	sudo chmod 755 $(SERVER_DIR)/build/server
 	sudo cp config.json $(SERVER_DIR)/config.json
+	sudo chmod 600 $(SERVER_DIR)/config.json
 	@if [ -f cert.pem ]; then \
 		sudo cp cert.pem $(SERVER_DIR)/cert.pem; \
+		sudo chmod 644 $(SERVER_DIR)/cert.pem; \
 	fi
 	@if [ -f key.pem ]; then \
 		sudo cp key.pem $(SERVER_DIR)/key.pem; \
+		sudo chmod 600 $(SERVER_DIR)/key.pem; \
 	fi
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
 	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
@@ -125,7 +130,7 @@ docker-run:
 		echo "Error: config.json not found! Copy example-config.json to config.json and configure it first."; \
 		exit 1; \
 	fi
-	@RUN_ARGS="-d --name $(DOCKER_CONTAINER) --restart unless-stopped --net host -v $(PWD)/config.json:/app/config.json:ro"; \
+	@RUN_ARGS="-d --name $(DOCKER_CONTAINER) --restart unless-stopped --net host --read-only --cap-drop=ALL --security-opt=no-new-privileges:true -v $(PWD)/config.json:/app/config.json:ro"; \
 	if [ -f cert.pem ]; then RUN_ARGS="$$RUN_ARGS -v $(PWD)/cert.pem:/app/cert.pem:ro"; fi; \
 	if [ -f key.pem ]; then RUN_ARGS="$$RUN_ARGS -v $(PWD)/key.pem:/app/key.pem:ro"; fi; \
 	echo "Starting container $(DOCKER_CONTAINER)..."; \

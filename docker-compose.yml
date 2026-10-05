@@ -6,6 +6,11 @@ services:
     restart: unless-stopped
     # Host networking is required for WOL UDP broadcast packets to reach physical LAN
     network_mode: host
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - ./config.json:/app/config.json:ro
       - ./cert.pem:/app/cert.pem:ro

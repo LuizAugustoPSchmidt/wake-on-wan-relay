@@ -22,14 +22,19 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w -X 'wake-on-wan-relay/lib.VERSION=${V
 # Runtime stage
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata && \
+    addgroup -g 1000 -S appgroup && \
+    adduser -u 1000 -S appuser -G appgroup
 
 WORKDIR /app
 
 COPY --from=builder /out/server /app/server
+
+USER 1000:1000
 
 # Server listens on 8443 by default
 EXPOSE 8443
 
 # Wake-on-LAN packets require host networking (--net=host) to reach the physical LAN.
 ENTRYPOINT ["/app/server"]
+
