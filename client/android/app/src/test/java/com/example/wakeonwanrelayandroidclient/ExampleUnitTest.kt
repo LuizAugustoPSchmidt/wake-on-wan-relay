@@ -112,4 +112,89 @@ class ExampleUnitTest {
         val back = WakeRelayClient.hexToBytes(hex)
         assertArrayEquals(testBytes, back)
     }
+
+    @Test
+    fun testExtractPrivateKey() {
+        val privHex = "8b0739886dcf8c1b92a4a15d3f6488a087cee9b884cdc8a7c208712f260544ea9ebbf4d24af0c60f661a657d527f6debd668eb2bc83a4cace0cf4d8f3cb21fb3"
+
+        // 1. JSON
+        val jsonContent = """{"externalAddress":"https://1.2.3.4:8443","privateKey":"$privHex"}""".toByteArray()
+        assertEquals(privHex, KeyFileUtils.extractPrivateKey(jsonContent))
+
+        // 2. Console key-gen output
+        val consoleContent = "Public: 9ebbf4d2...\nPrivate: $privHex\n".toByteArray()
+        assertEquals(privHex, KeyFileUtils.extractPrivateKey(consoleContent))
+
+        // 3. Raw hex text
+        val rawTextContent = "   $privHex  \n".toByteArray()
+        assertEquals(privHex, KeyFileUtils.extractPrivateKey(rawTextContent))
+    }
+
+    @Test
+    fun testExtractCertificateFingerprintFromText() {
+        val expected = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+
+        // Formatted with colons
+        val formatted = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+        assertEquals(expected, KeyFileUtils.extractCertificateFingerprint(formatted.toByteArray()))
+
+        // Inside config.json
+        val json = """{"certFingerprint":"$formatted"}""".toByteArray()
+        assertEquals(expected, KeyFileUtils.extractCertificateFingerprint(json))
+    }
+
+    @Test
+    fun testExtractOpenSshPrivateKey() {
+        val openSshSample = """
+            -----BEGIN OPENSSH PRIVATE KEY-----
+            b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+            QyNTUxOQAAACDPAOi5oO0icDfjVjNaS0Wi1UDtaarRzRndo0ntIllxHwAAAJjZygNV2coD
+            VQAAAAtzc2gtZWQyNTUxOQAAACDPAOi5oO0icDfjVjNaS0Wi1UDtaarRzRndo0ntIllxHw
+            AAAEAbXG4N1VqhAkRzK8AVjU9doM7oBrax34ukxsAlLyeJXM8A6Lmg7SJwN+NWM1pLRaLV
+            QO1pqtHNGd2jSe0iWXEfAAAAEHRlc3RAZXhhbXBsZS5jb20BAgMEBQ==
+            -----END OPENSSH PRIVATE KEY-----
+        """.trimIndent()
+
+        val extracted = KeyFileUtils.extractPrivateKey(openSshSample.toByteArray())
+        assertEquals(128, extracted.length)
+        // Verify that the extracted key signs properly with standard Ed25519 signer
+        val privBytes = WakeRelayClient.hexToBytes(extracted)
+        val seed32 = privBytes.copyOfRange(0, 32)
+        val pkcs8Prefix = byteArrayOf(
+            0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+            0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
+        )
+        val privKeySpec = java.security.spec.PKCS8EncodedKeySpec(pkcs8Prefix + seed32)
+        val kf = java.security.KeyFactory.getInstance("Ed25519")
+        val privateKey = kf.generatePrivate(privKeySpec)
+        val signer = java.security.Signature.getInstance("Ed25519")
+        signer.initSign(privateKey)
+        signer.update("hello".toByteArray())
+        val sig = signer.sign()
+        assertEquals(64, sig.size)
+    }
+
+    @Test
+    fun testLoadFromDiskFilePath() {
+        val tempDir = java.nio.file.Files.createTempDirectory("test_keys").toFile()
+        try {
+            // 1. Create a fingerprint file on disk (like cert-fingerprint.tmp)
+            val fpFile = java.io.File(tempDir, "cert-fingerprint.tmp")
+            val expectedFp = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+            fpFile.writeText(expectedFp)
+
+            val loadedFp = KeyFileUtils.loadCertificateFingerprint(fpFile.absolutePath)
+            assertEquals(expectedFp, loadedFp)
+
+            // 2. Create a private key file on disk
+            val privHex = "8b0739886dcf8c1b92a4a15d3f6488a087cee9b884cdc8a7c208712f260544ea9ebbf4d24af0c60f661a657d527f6debd668eb2bc83a4cace0cf4d8f3cb21fb3"
+            val keyFile = java.io.File(tempDir, "id_ed25519")
+            keyFile.writeText(privHex)
+
+            val loadedKey = KeyFileUtils.loadPrivateKey(keyFile.absolutePath)
+            assertEquals(privHex, loadedKey)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }

@@ -2,8 +2,10 @@ package com.example.wakeonwanrelayandroidclient
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -87,10 +89,53 @@ fun WakeScreen() {
     var certFingerprint by remember { mutableStateOf("") }
     var showPrivateKey by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
+    var activeFileBrowser by remember { mutableStateOf<String?>(null) }
 
     var isLoading by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<WakeResult?>(null) }
     var lastResultTime by remember { mutableStateOf("") }
+
+    val privateKeyPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            try {
+                val bytes = context.contentResolver.openInputStream(it)?.use { stream ->
+                    stream.readBytes()
+                } ?: throw java.io.IOException("Could not read file data")
+                val extracted = KeyFileUtils.extractPrivateKey(bytes)
+                privateKey = extracted
+                scope.launch {
+                    snackbarHostState.showSnackbar("Private key loaded from file!")
+                }
+            } catch (e: Exception) {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Failed to load key: ${e.message}")
+                }
+            }
+        }
+    }
+
+    val certPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            try {
+                val bytes = context.contentResolver.openInputStream(it)?.use { stream ->
+                    stream.readBytes()
+                } ?: throw java.io.IOException("Could not read file data")
+                val extracted = KeyFileUtils.extractCertificateFingerprint(bytes)
+                certFingerprint = extracted
+                scope.launch {
+                    snackbarHostState.showSnackbar("Certificate fingerprint loaded from file!")
+                }
+            } catch (e: Exception) {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Failed to load cert: ${e.message}")
+                }
+            }
+        }
+    }
 
     // Load persisted configuration on launch
     LaunchedEffect(Unit) {
@@ -294,8 +339,8 @@ fun WakeScreen() {
                     OutlinedTextField(
                         value = privateKey,
                         onValueChange = { privateKey = it },
-                        label = { Text("Ed25519 Private Key (Hex)") },
-                        placeholder = { Text("128 hex chars (or 64 hex seed)") },
+                        label = { Text("Ed25519 Private Key File / Key") },
+                        placeholder = { Text("Path to key file (e.g. ~/.ssh/id_ed25519)") },
                         singleLine = true,
                         visualTransformation = if (showPrivateKey) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -306,6 +351,30 @@ fun WakeScreen() {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Select key file on device",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            OutlinedButton(
+                                onClick = { activeFileBrowser = "key" }
+                            ) {
+                                Text("Browse", fontSize = 12.sp)
+                            }
+                            TextButton(
+                                onClick = { privateKeyPickerLauncher.launch(arrayOf("*/*")) }
+                            ) {
+                                Text("System", fontSize = 12.sp)
+                            }
+                        }
+                    }
 
                     // Advanced TLS Options Toggle
                     Row(
@@ -341,12 +410,36 @@ fun WakeScreen() {
                             OutlinedTextField(
                                 value = certFingerprint,
                                 onValueChange = { certFingerprint = it },
-                                label = { Text("Certificate Fingerprint (SHA-256)") },
-                                placeholder = { Text("64 hex chars or colons") },
+                                label = { Text("Certificate Fingerprint File / Value") },
+                                placeholder = { Text("Path to fingerprint file (or SHA-256 hex)") },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                                 modifier = Modifier.fillMaxWidth()
                             )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Select fingerprint file",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    OutlinedButton(
+                                        onClick = { activeFileBrowser = "cert" }
+                                    ) {
+                                        Text("Browse", fontSize = 12.sp)
+                                    }
+                                    TextButton(
+                                        onClick = { certPickerLauncher.launch(arrayOf("*/*")) }
+                                    ) {
+                                        Text("System", fontSize = 12.sp)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -379,6 +472,36 @@ fun WakeScreen() {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+
+    // In-app File Browser Dialog
+    when (activeFileBrowser) {
+        "key" -> {
+            FileBrowserDialog(
+                title = "Select Private Key File",
+                onDismissRequest = { activeFileBrowser = null },
+                onFileSelected = { selectedPath ->
+                    privateKey = selectedPath
+                    activeFileBrowser = null
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Selected key file: ${selectedPath.substringAfterLast('/')}")
+                    }
+                }
+            )
+        }
+        "cert" -> {
+            FileBrowserDialog(
+                title = "Select Fingerprint File",
+                onDismissRequest = { activeFileBrowser = null },
+                onFileSelected = { selectedPath ->
+                    certFingerprint = selectedPath
+                    activeFileBrowser = null
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Selected fingerprint file: ${selectedPath.substringAfterLast('/')}")
+                    }
+                }
+            )
         }
     }
 }

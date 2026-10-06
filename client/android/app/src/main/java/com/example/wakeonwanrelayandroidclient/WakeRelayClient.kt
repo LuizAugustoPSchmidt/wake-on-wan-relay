@@ -74,7 +74,9 @@ object WakeRelayClient {
         certFingerprint: String = ""
     ): WakeResult {
         return try {
-            val privateKey = getPrivateKey(privateKeyHex)
+            val resolvedKeyHex = KeyFileUtils.loadPrivateKey(privateKeyHex)
+            val resolvedFp = KeyFileUtils.loadCertificateFingerprint(certFingerprint)
+            val privateKey = getPrivateKey(resolvedKeyHex)
             val parsedUrl = URL(serverUrlString)
 
             // 1. Attempt v2 request
@@ -83,7 +85,7 @@ object WakeRelayClient {
                 privateKey = privateKey,
                 isV2 = true,
                 serverName = serverName,
-                certFingerprint = certFingerprint
+                certFingerprint = resolvedFp
             )
 
             // 2. If server returns 404 (possibly legacy v1 server), fallback to v1 auth
@@ -93,7 +95,7 @@ object WakeRelayClient {
                     privateKey = privateKey,
                     isV2 = false,
                     serverName = serverName,
-                    certFingerprint = certFingerprint
+                    certFingerprint = resolvedFp
                 )
                 v1Result
             } else {
@@ -174,6 +176,11 @@ object WakeRelayClient {
         val cleanFp = certFingerprint.replace(":", "").replace(" ", "").lowercase().trim()
 
         if (cleanFp.isNotEmpty()) {
+            if (cleanFp.length != 64 || !cleanFp.all { it in '0'..'9' || it in 'a'..'f' }) {
+                throw IllegalArgumentException(
+                    "Invalid certificate fingerprint: expected 64 hex characters (SHA-256), got: '$certFingerprint'"
+                )
+            }
             val trustManager = object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
 
