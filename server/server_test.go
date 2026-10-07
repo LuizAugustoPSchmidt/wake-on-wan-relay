@@ -175,6 +175,21 @@ func TestServer_BadSignature(t *testing.T) {
 	}
 }
 
+func TestServer_WakeHandler_Unauthenticated(t *testing.T) {
+	app, _, _, sentPackets := setupTestServer(t)
+
+	req := httptest.NewRequest("GET", "/wake", nil)
+	rec := httptest.NewRecorder()
+	app.WakeHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("Expected 404 for unauthenticated /wake request, got %d", rec.Code)
+	}
+	if len(*sentPackets) != 0 {
+		t.Fatalf("Expected no packets sent, got %d", len(*sentPackets))
+	}
+}
+
 func TestServer_MultipleRequestsSameSecond_DifferentNonces(t *testing.T) {
 	app, _, priv, sentPackets := setupTestServer(t)
 
@@ -216,3 +231,37 @@ func TestServer_MultipleRequestsSameSecond_DifferentNonces(t *testing.T) {
 		t.Fatalf("Expected 2 packets sent, got %d", len(*sentPackets))
 	}
 }
+
+func TestServer_StatusHandler_Unauthenticated(t *testing.T) {
+	app, _, _, _ := setupTestServer(t)
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	rec := httptest.NewRecorder()
+	app.StatusHandler(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("Expected 404 Not Found for unauthenticated /status request, got %d", rec.Code)
+	}
+}
+
+func TestServer_StatusHandler_Authenticated(t *testing.T) {
+	app, _, priv, _ := setupTestServer(t)
+
+	tsStr := fmt.Sprintf("%d", time.Now().Unix())
+	nonce := "99887766554433221100aabbccddeeff"
+	v2Payload := fmt.Sprintf("v2:GET:/status:%s:%s", tsStr, nonce)
+	sig := ed25519.Sign(priv, []byte(v2Payload))
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	req.Header.Set("X-Timestamp", tsStr)
+	req.Header.Set("X-Nonce", nonce)
+	req.Header.Set("X-Signature", hex.EncodeToString(sig))
+	rec := httptest.NewRecorder()
+
+	app.StatusHandler(rec, req)
+
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("Expected authenticated /status request to pass auth, but got 404 Not Found")
+	}
+}
+

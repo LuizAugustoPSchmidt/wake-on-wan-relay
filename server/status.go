@@ -14,6 +14,11 @@ import (
 func (s *ServerApp) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received /status call")
 
+	if !s.Authenticate(r) {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+
 	context := relay.GetContext()
 	portOpen, err := CheckSSH(context.InternalAddr, 22, 1*time.Second)
 
