@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 var VERSION = "0.1.3"
@@ -33,6 +34,7 @@ type Context struct {
 	PrivateKey      string `json:"privateKey"`
 	PublicKey       string `json:"publicKey"`
 	ExternalAddr    string `json:"externalAddress"`
+	InternalAddr    string `json:"internalAddress"`
 	CertPath        string `json:"certPath"`
 	KeyPath         string `json:"keyPath"`
 	CACertPath      string `json:"caCertPath"`
@@ -55,29 +57,35 @@ func ResolvePath(path string) string {
 	return filepath.Join(GetProjectRoot(), path)
 }
 
+var (
+	GlobalContext *Context
+	once          sync.Once
+)
+
 func GetContext() *Context {
-	context := new(Context)
+	once.Do(func() {
+		GlobalContext := new(Context)
 
-	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		if _, err := os.Stat("config.json"); err == nil {
-			configPath = "config.json"
-		} else {
-			configPath = filepath.Join(GetProjectRoot(), "config.json")
+		configPath := os.Getenv("CONFIG_PATH")
+		if configPath == "" {
+			if _, err := os.Stat("config.json"); err == nil {
+				configPath = "config.json"
+			} else {
+				configPath = filepath.Join(GetProjectRoot(), "config.json")
+			}
 		}
-	}
 
-	contextRaw, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Fatalf("Failed to read config from %s: %v", configPath, err)
-	}
+		contextRaw, err := os.ReadFile(configPath)
+		if err != nil {
+			log.Fatalf("Failed to read config from %s: %v", configPath, err)
+		}
 
-	err = json.Unmarshal(contextRaw, context)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal config. Check if it is valid json")
-	}
+		err = json.Unmarshal(contextRaw, GlobalContext)
+		if err != nil {
+			log.Fatalf("Failed to unmarshal config. Check if it is valid json")
+		}
 
-	context.Version = strings.TrimPrefix(VERSION, "v")
-
-	return context
+		GlobalContext.Version = strings.TrimPrefix(VERSION, "v")
+	})
+	return GlobalContext
 }
