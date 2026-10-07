@@ -64,7 +64,7 @@ var (
 
 func GetContext() *Context {
 	once.Do(func() {
-		GlobalContext := new(Context)
+		GlobalContext = new(Context)
 
 		configPath := os.Getenv("CONFIG_PATH")
 		if configPath == "" {
