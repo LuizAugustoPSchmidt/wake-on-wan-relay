@@ -20,12 +20,16 @@ func setupTestServer(t *testing.T) (*ServerApp, ed25519.PublicKey, ed25519.Priva
 
 	var sentPackets []string
 	app := &ServerApp{
-		pubKey:      pub,
-		targetMAC:   "9C:6B:00:3D:25:6D",
-		replayCache: NewReplayCache(),
+		pubKey:       pub,
+		targetMAC:    "9C:6B:00:3D:25:6D",
+		internalAddr: "192.168.1.100",
+		replayCache:  NewReplayCache(),
 		sendPacket: func(mac string) error {
 			sentPackets = append(sentPackets, mac)
 			return nil
+		},
+		checkSSH: func(host string, port int, timeout time.Duration) (bool, error) {
+			return true, nil
 		},
 	}
 
@@ -260,8 +264,35 @@ func TestServer_StatusHandler_Authenticated(t *testing.T) {
 
 	app.StatusHandler(rec, req)
 
-	if rec.Code == http.StatusNotFound {
-		t.Fatalf("Expected authenticated /status request to pass auth, but got 404 Not Found")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for authenticated /status request, got %d", rec.Code)
+	}
+	if rec.Body.String() != "Server is up and SSH is enabled" {
+		t.Fatalf("Unexpected response body: %q", rec.Body.String())
+	}
+}
+
+func TestServer_StatusHandler_SSHDown(t *testing.T) {
+	app, _, priv, _ := setupTestServer(t)
+	app.checkSSH = func(host string, port int, timeout time.Duration) (bool, error) {
+		return false, fmt.Errorf("connection refused")
+	}
+
+	tsStr := fmt.Sprintf("%d", time.Now().Unix())
+	nonce := "12345678123456781234567812345678"
+	v2Payload := fmt.Sprintf("v2:GET:/status:%s:%s", tsStr, nonce)
+	sig := ed25519.Sign(priv, []byte(v2Payload))
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	req.Header.Set("X-Timestamp", tsStr)
+	req.Header.Set("X-Nonce", nonce)
+	req.Header.Set("X-Signature", hex.EncodeToString(sig))
+	rec := httptest.NewRecorder()
+
+	app.StatusHandler(rec, req)
+
+	if rec.Code != http.StatusExpectationFailed {
+		t.Fatalf("Expected 417 Expectation Failed when SSH is down, got %d", rec.Code)
 	}
 }
 

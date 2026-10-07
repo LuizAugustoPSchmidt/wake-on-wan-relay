@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	relay "wake-on-wan-relay/lib"
 )
 
 func (s *ServerApp) StatusHandler(w http.ResponseWriter, r *http.Request) {
@@ -19,8 +18,12 @@ func (s *ServerApp) StatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	context := relay.GetContext()
-	portOpen, err := CheckSSH(context.InternalAddr, 22, 1*time.Second)
+	checker := s.checkSSH
+	if checker == nil {
+		checker = CheckSSH
+	}
+
+	portOpen, err := checker(s.internalAddr, 22, 1*time.Second)
 
 	if portOpen && err == nil {
 		w.Write([]byte("Server is up and SSH is enabled"))

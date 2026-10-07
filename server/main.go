@@ -27,10 +27,12 @@ func main() {
 
 // ServerApp holds the dependencies for handling relay requests.
 type ServerApp struct {
-	pubKey      ed25519.PublicKey
-	targetMAC   string
-	replayCache *ReplayCache
-	sendPacket  func(mac string) error
+	pubKey       ed25519.PublicKey
+	targetMAC    string
+	internalAddr string
+	replayCache  *ReplayCache
+	sendPacket   func(mac string) error
+	checkSSH     func(host string, port int, timeout time.Duration) (bool, error)
 }
 
 func run(context *config.Context) {
@@ -59,10 +61,12 @@ func run(context *config.Context) {
 	log.Printf("Starting TLS server on :8443 (cert: %s, key: %s)\n", certPath, keyPath)
 
 	app := &ServerApp{
-		pubKey:      pubKey,
-		targetMAC:   targetMAC,
-		replayCache: NewReplayCache(),
-		sendPacket:  sendMagicPacket,
+		pubKey:       pubKey,
+		targetMAC:    targetMAC,
+		internalAddr: context.InternalAddr,
+		replayCache:  NewReplayCache(),
+		sendPacket:   sendMagicPacket,
+		checkSSH:     CheckSSH,
 	}
 
 	mux := http.NewServeMux()
