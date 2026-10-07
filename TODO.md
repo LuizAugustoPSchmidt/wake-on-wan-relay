@@ -4,4 +4,11 @@
   - [x] Write Systemd service
   - [ ] Ensure Behavior
   - [ ] Test the application
-  - [ ] Write Android Client
+  - [x] Write Android Client
+
+## Security & Architectural Enhancements
+  - [ ] Split `config.json` into `server-config.json` and `client-config.json`
+  - [ ] Add rate limiting & CPU / DoS exhaustion mitigation (IP-based throttle)
+  - [ ] Add Wake-on-LAN broadcast cooldown (prevent UDP flood storms)
+  - [ ] Cap banner reads in `CheckSSH` with `io.LimitReader` (prevent memory exhaustion)
+  - [ ] Set `MaxHeaderBytes` (8KB) and enforce empty body checks on GET requests

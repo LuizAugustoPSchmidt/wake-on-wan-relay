@@ -6,7 +6,7 @@ import (
 )
 
 func (s *ServerApp) WakeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Received /wake call")
+	log.Println("Received /wake call from", r.RemoteAddr)
 
 	if !s.Authenticate(r) {
 		http.Error(w, "Not Found", http.StatusNotFound)

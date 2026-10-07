@@ -88,7 +88,7 @@ deploy-server: docker-build
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
 	@echo "$$SYSTEMD_UNIT" | sudo tee $(SYSTEMD_DIR)/$(SERVICE_FILE) > /dev/null
 	sudo chmod 644 $(SYSTEMD_DIR)/$(SERVICE_FILE)
-	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
+	sudo systemctl daemon-reload && sudo systemctl enable wake-on-wan-relay.service && sudo systemctl restart wake-on-wan-relay.service
 
 deploy-server-native: build-server
 	@if [ ! -f config.json ]; then \
@@ -110,7 +110,7 @@ deploy-server-native: build-server
 		sudo chmod 600 $(SERVER_DIR)/key.pem; \
 	fi
 	sudo chown -R $(SERVER_USER):$(SERVER_GROUP) $(SERVER_DIR)
-	sudo systemctl daemon-reload && sudo systemctl enable --now wake-on-wan-relay.service
+	sudo systemctl daemon-reload && sudo systemctl enable wake-on-wan-relay.service && sudo systemctl restart wake-on-wan-relay.service
 
 install-client: build-client
 	sudo mkdir -p $(BINDIR)
