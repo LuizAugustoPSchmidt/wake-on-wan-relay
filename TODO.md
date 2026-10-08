@@ -6,6 +6,10 @@
   - [ ] Test the application
   - [x] Write Android Client
 
+## Client Features
+  - [ ] Add status check to native client
+  - [ ] Add status check to Android client
+
 ## Security & Architectural Enhancements
   - [ ] Split `config.json` into `server-config.json` and `client-config.json`
   - [ ] Add rate limiting & CPU / DoS exhaustion mitigation (IP-based throttle)
