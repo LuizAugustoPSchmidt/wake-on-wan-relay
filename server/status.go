@@ -11,9 +11,10 @@ import (
 )
 
 func (s *ServerApp) StatusHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Received /status call")
+	log.Printf("Received /status call from %s\n", r.RemoteAddr)
 
 	if !s.Authenticate(r) {
+		log.Printf("Unauthenticated request from %s\n", r.RemoteAddr)
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
@@ -26,20 +27,24 @@ func (s *ServerApp) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	portOpen, err := checker(s.internalAddr, 22, 1*time.Second)
 
 	if portOpen && err == nil {
+		log.Println("Server is up and SSH is enabled")
 		w.Write([]byte("Server is up and SSH is enabled"))
 		return
 	}
 
 	if !portOpen {
+		log.Println("SSH server seems to be down")
 		http.Error(w, "SSH Server seems to be down", http.StatusExpectationFailed)
 		return
 	}
 
 	if portOpen && err != nil {
+		log.Println("Server is up but port seems to be occupied by another process")
 		http.Error(w, "Server is up but port seems to be occupied by another process", http.StatusLocked)
 		return
 	}
 
+	log.Println("Unknown error. Please investigate:", r)
 	http.Error(w, "Unknown Server Error. Please contact your administrator", http.StatusInternalServerError)
 
 }

@@ -295,4 +295,3 @@ func TestServer_StatusHandler_SSHDown(t *testing.T) {
 		t.Fatalf("Expected 417 Expectation Failed when SSH is down, got %d", rec.Code)
 	}
 }
-
