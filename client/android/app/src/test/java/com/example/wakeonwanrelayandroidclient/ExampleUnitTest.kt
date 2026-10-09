@@ -197,4 +197,39 @@ class ExampleUnitTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testResolveEndpointUrl() {
+        val base1 = "https://lapschmidt.duckdns.org:2411"
+        assertEquals("https://lapschmidt.duckdns.org:2411/status", WakeRelayClient.resolveEndpointUrl(base1, "/status").toString())
+        assertEquals("https://lapschmidt.duckdns.org:2411/wake", WakeRelayClient.resolveEndpointUrl(base1, "/wake").toString())
+
+        val base2 = "https://lapschmidt.duckdns.org:2411/wake"
+        assertEquals("https://lapschmidt.duckdns.org:2411/status", WakeRelayClient.resolveEndpointUrl(base2, "/status").toString())
+        assertEquals("https://lapschmidt.duckdns.org:2411/wake", WakeRelayClient.resolveEndpointUrl(base2, "/wake").toString())
+
+        val base3 = "https://lapschmidt.duckdns.org:2411/"
+        assertEquals("https://lapschmidt.duckdns.org:2411/status", WakeRelayClient.resolveEndpointUrl(base3, "/status").toString())
+
+        val base4 = "lapschmidt.duckdns.org:2411"
+        assertEquals("https://lapschmidt.duckdns.org:2411/status", WakeRelayClient.resolveEndpointUrl(base4, "/status").toString())
+    }
+
+    @Test
+    fun testStatusPayloadSignature() {
+        val kpg = java.security.KeyPairGenerator.getInstance("Ed25519")
+        val kp = kpg.generateKeyPair()
+        val payload = "v2:GET:/status:1710000000:aabbccddeeff00112233445566778899".toByteArray(Charsets.UTF_8)
+
+        val signer = java.security.Signature.getInstance("Ed25519")
+        signer.initSign(kp.private)
+        signer.update(payload)
+        val sig = signer.sign()
+        assertEquals(64, sig.size)
+
+        val verifier = java.security.Signature.getInstance("Ed25519")
+        verifier.initVerify(kp.public)
+        verifier.update(payload)
+        assertTrue(verifier.verify(sig))
+    }
 }

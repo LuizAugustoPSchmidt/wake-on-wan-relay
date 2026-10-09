@@ -95,6 +95,10 @@ fun WakeScreen() {
     var lastResult by remember { mutableStateOf<WakeResult?>(null) }
     var lastResultTime by remember { mutableStateOf("") }
 
+    var isStatusLoading by remember { mutableStateOf(false) }
+    var lastStatusResult by remember { mutableStateOf<WakeResult?>(null) }
+    var lastStatusResultTime by remember { mutableStateOf("") }
+
     val privateKeyPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -221,7 +225,7 @@ fun WakeScreen() {
                                 lastResultTime = formatter.format(Date())
                             }
                         },
-                        enabled = !isLoading,
+                        enabled = !isLoading && !isStatusLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
@@ -306,6 +310,151 @@ fun WakeScreen() {
                 }
             }
 
+            // Status Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Remote Target Status",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Button(
+                        onClick = {
+                            if (serverUrl.isBlank() || privateKey.isBlank()) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Please fill Server URL and Private Key first")
+                                }
+                                return@Button
+                            }
+
+                            isStatusLoading = true
+                            lastStatusResult = null
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    WakeRelayClient.sendStatusRequest(
+                                        serverUrlString = serverUrl.trim(),
+                                        privateKeyHex = privateKey.trim(),
+                                        serverName = serverName.trim(),
+                                        certFingerprint = certFingerprint.trim()
+                                    )
+                                }
+                                isStatusLoading = false
+                                lastStatusResult = result
+                                val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                                lastStatusResultTime = formatter.format(Date())
+                            }
+                        },
+                        enabled = !isStatusLoading && !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isStatusLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = "Checking Status...", fontSize = 16.sp)
+                        } else {
+                            Text(
+                                text = "CHECK PC STATUS",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Result Status Display
+                    lastStatusResult?.let { result ->
+                        val isOnline = result is WakeResult.Success
+                        val bgColor = if (isOnline) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        }
+                        val textColor = if (isOnline) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        }
+
+                        val headerTitle = when (result) {
+                            is WakeResult.Success -> "Online (HTTP ${result.statusCode})"
+                            is WakeResult.Failure -> {
+                                when (result.statusCode) {
+                                    417 -> "Offline (HTTP 417)"
+                                    423 -> "Port Busy (HTTP 423)"
+                                    404 -> "Not Found / Unauthorized (HTTP 404)"
+                                    null -> "Connection Failed"
+                                    else -> "Request Failed (HTTP ${result.statusCode})"
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(bgColor)
+                                .padding(12.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = headerTitle,
+                                        fontWeight = FontWeight.Bold,
+                                        color = textColor,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    if (lastStatusResultTime.isNotEmpty()) {
+                                        Text(
+                                            text = lastStatusResultTime,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = textColor
+                                        )
+                                    }
+                                }
+                                val detailMessage = when (result) {
+                                    is WakeResult.Success -> result.message
+                                    is WakeResult.Failure -> {
+                                        if (result.statusCode != null) {
+                                            "HTTP ${result.statusCode}: ${result.errorMessage}"
+                                        } else {
+                                            result.errorMessage
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = detailMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = textColor,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Configuration Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -330,7 +479,7 @@ fun WakeScreen() {
                         value = serverUrl,
                         onValueChange = { serverUrl = it },
                         label = { Text("Server URL") },
-                        placeholder = { Text("https://example.com:8443/wake") },
+                        placeholder = { Text("https://lapschmidt.duckdns.org:2411") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         modifier = Modifier.fillMaxWidth()

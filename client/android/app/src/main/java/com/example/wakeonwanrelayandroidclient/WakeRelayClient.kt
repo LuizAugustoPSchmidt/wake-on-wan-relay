@@ -67,8 +67,51 @@ object WakeRelayClient {
         return bytesToHex(signer.sign())
     }
 
+    fun resolveEndpointUrl(serverUrlString: String, endpoint: String): URL {
+        var trimmed = serverUrlString.trim().trimEnd('/')
+        if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+            trimmed = "https://$trimmed"
+        }
+        val targetEndpoint = if (endpoint.startsWith("/")) endpoint else "/$endpoint"
+
+        val base = when {
+            trimmed.endsWith("/wake", ignoreCase = true) -> trimmed.substring(0, trimmed.length - 5)
+            trimmed.endsWith("/status", ignoreCase = true) -> trimmed.substring(0, trimmed.length - 7)
+            else -> trimmed
+        }
+
+        return URL(base + targetEndpoint)
+    }
+
     fun sendWakeRequest(
         serverUrlString: String,
+        privateKeyHex: String,
+        serverName: String = "",
+        certFingerprint: String = ""
+    ): WakeResult = sendRequest(
+        serverUrlString = serverUrlString,
+        endpoint = "/wake",
+        privateKeyHex = privateKeyHex,
+        serverName = serverName,
+        certFingerprint = certFingerprint
+    )
+
+    fun sendStatusRequest(
+        serverUrlString: String,
+        privateKeyHex: String,
+        serverName: String = "",
+        certFingerprint: String = ""
+    ): WakeResult = sendRequest(
+        serverUrlString = serverUrlString,
+        endpoint = "/status",
+        privateKeyHex = privateKeyHex,
+        serverName = serverName,
+        certFingerprint = certFingerprint
+    )
+
+    fun sendRequest(
+        serverUrlString: String,
+        endpoint: String,
         privateKeyHex: String,
         serverName: String = "",
         certFingerprint: String = ""
@@ -77,7 +120,7 @@ object WakeRelayClient {
             val resolvedKeyHex = KeyFileUtils.loadPrivateKey(privateKeyHex)
             val resolvedFp = KeyFileUtils.loadCertificateFingerprint(certFingerprint)
             val privateKey = getPrivateKey(resolvedKeyHex)
-            val parsedUrl = URL(serverUrlString)
+            val parsedUrl = resolveEndpointUrl(serverUrlString, endpoint)
 
             // 1. Attempt v2 request
             val v2Result = executeRequest(
@@ -154,7 +197,7 @@ object WakeRelayClient {
 
             val responseBody = inputStream?.let { stream ->
                 BufferedReader(InputStreamReader(stream)).use { it.readText() }
-            } ?: ""
+            }?.trim() ?: ""
 
             return if (statusCode in 200..299) {
                 WakeResult.Success(statusCode, responseBody.ifBlank { "OK" })
