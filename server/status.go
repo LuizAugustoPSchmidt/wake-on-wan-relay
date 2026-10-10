@@ -67,6 +67,7 @@ func CheckSSH(host string, port int, timeout time.Duration) (portOpen bool, err 
 	}
 
 	banner = strings.TrimSpace(banner)
+	log.Printf("Banner: %s\n", banner)
 	if strings.HasPrefix(banner, "SSH-") {
 		return true, nil
 	}
