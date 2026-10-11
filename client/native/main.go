@@ -8,14 +8,26 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"time"
 	config "wake-on-wan-relay/lib"
 )
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "Usage: client <command>\n\n")
+	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "  wake     Send wake-on-LAN magic packet via relay\n")
+	fmt.Fprintf(os.Stderr, "  status   Check target machine reachability / SSH status\n\n")
+	fmt.Fprintf(os.Stderr, "Options:\n")
+	fmt.Fprintf(os.Stderr, "  --help, -h      Show this help message\n")
+	fmt.Fprintf(os.Stderr, "  --version       Show client version\n")
+}
 
 func main() {
 	context := config.GetContext()
@@ -25,7 +37,26 @@ func main() {
 		return
 	}
 
-	run(context)
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Error: missing command.\n\n")
+		printUsage()
+		os.Exit(1)
+	}
+
+	cmd := os.Args[1]
+	switch cmd {
+	case "wake":
+		run(context, "/wake")
+	case "status":
+		run(context, "/status")
+	case "help", "-h", "--help":
+		printUsage()
+		return
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unknown command %q.\n\n", cmd)
+		printUsage()
+		os.Exit(1)
+	}
 }
 
 func buildTLSConfig(context *config.Context) (*tls.Config, error) {
@@ -111,8 +142,33 @@ func buildTLSConfig(context *config.Context) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func createWakeRequest(serverURL string, privKey ed25519.PrivateKey, v2Auth bool) (*http.Request, error) {
-	req, err := http.NewRequest("GET", serverURL, nil)
+func resolveEndpointURL(serverURL, endpoint string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(serverURL), "/")
+	if !strings.HasPrefix(strings.ToLower(trimmed), "http://") && !strings.HasPrefix(strings.ToLower(trimmed), "https://") {
+		trimmed = "https://" + trimmed
+	}
+
+	u, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid server URL: %w", err)
+	}
+
+	path := u.Path
+	if strings.HasSuffix(strings.ToLower(path), "/wake") {
+		u.Path = path[:len(path)-5]
+	} else if strings.HasSuffix(strings.ToLower(path), "/status") {
+		u.Path = path[:len(path)-7]
+	}
+
+	if !strings.HasPrefix(endpoint, "/") {
+		endpoint = "/" + endpoint
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + endpoint
+	return u.String(), nil
+}
+
+func createRequest(targetURL string, privKey ed25519.PrivateKey, v2Auth bool) (*http.Request, error) {
+	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -128,7 +184,12 @@ func createWakeRequest(serverURL string, privKey ed25519.PrivateKey, v2Auth bool
 		nonce := hex.EncodeToString(nonceBytes)
 		req.Header.Set("X-Nonce", nonce)
 
-		v2Payload := fmt.Sprintf("v2:%s:%s:%s:%s", req.Method, req.URL.Path, tsStr, nonce)
+		path := req.URL.Path
+		if path == "" {
+			path = "/"
+		}
+
+		v2Payload := fmt.Sprintf("v2:%s:%s:%s:%s", req.Method, path, tsStr, nonce)
 		sig := ed25519.Sign(privKey, []byte(v2Payload))
 		req.Header.Set("X-Signature", hex.EncodeToString(sig))
 	} else {
@@ -139,10 +200,33 @@ func createWakeRequest(serverURL string, privKey ed25519.PrivateKey, v2Auth bool
 	return req, nil
 }
 
-func run(context *config.Context) {
+func createWakeRequest(serverURL string, privKey ed25519.PrivateKey, v2Auth bool) (*http.Request, error) {
+	return createRequest(serverURL, privKey, v2Auth)
+}
+
+func printResponse(resp *http.Response) {
+	bodyBytes, err := io.ReadAll(resp.Body)
+	body := ""
+	if err == nil {
+		body = strings.TrimSpace(string(bodyBytes))
+	}
+
+	if body != "" {
+		fmt.Printf("Server Response Status: %s - %s\n", resp.Status, body)
+	} else {
+		fmt.Println("Server Response Status:", resp.Status)
+	}
+}
+
+func run(context *config.Context, endpoint string) {
 	serverURL := context.ExternalAddr
 	if serverURL == "" {
 		log.Fatal("externalAddress is required in config.json")
+	}
+
+	targetURL, err := resolveEndpointURL(serverURL, endpoint)
+	if err != nil {
+		log.Fatalf("Invalid server URL: %v", err)
 	}
 
 	privKeyHex := context.PrivateKey
@@ -163,9 +247,9 @@ func run(context *config.Context) {
 	client := &http.Client{Timeout: 5 * time.Second, Transport: transport}
 
 	// 1. Attempt v2 authenticated request (nonce + method/path binding)
-	reqV2, err := createWakeRequest(serverURL, privKey, true)
+	reqV2, err := createRequest(targetURL, privKey, true)
 	if err != nil {
-		log.Fatalf("Failed to create v2 wake request: %v", err)
+		log.Fatalf("Failed to create v2 request: %v", err)
 	}
 
 	resp, err := client.Do(reqV2)
@@ -178,15 +262,15 @@ func run(context *config.Context) {
 	// If server returned 404 (an older server that does not recognize v2 auth),
 	// automatically fallback to legacy v1 auth for backward compatibility.
 	if resp.StatusCode == http.StatusNotFound {
-		reqV1, err := createWakeRequest(serverURL, privKey, false)
+		reqV1, err := createRequest(targetURL, privKey, false)
 		if err == nil {
 			if retryResp, retryErr := client.Do(reqV1); retryErr == nil {
 				defer retryResp.Body.Close()
-				fmt.Println("Server Response Status:", retryResp.Status)
+				printResponse(retryResp)
 				return
 			}
 		}
 	}
 
-	fmt.Println("Server Response Status:", resp.Status)
+	printResponse(resp)
 }

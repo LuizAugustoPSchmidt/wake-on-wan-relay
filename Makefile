@@ -62,6 +62,9 @@ build-keygen:
 	mkdir -p build
 	GOBIN=$(PWD)/build go install -ldflags="$(LDFLAGS)" ./keypair-generator
 
+test:
+	go test ./server ./client/native ./lib ./keypair-generator
+
 deploy-server: docker-build
 	@if [ ! -f config.json ]; then \
 		echo "Error: config.json not found! Copy example-config.json to config.json and configure it before deploying."; \
