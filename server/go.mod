@@ -1,3 +1,3 @@
 module wake-on-wan-relay/server
 
-go 1.27.3
+go 1.27
