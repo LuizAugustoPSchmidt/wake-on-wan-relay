@@ -11,6 +11,7 @@
       version = "1.2.0-${self.shortRev or self.dirtyShortRev or "unknown"}";
     in
     {
+      formatter.${system} = pkgs.nixfmt;
       packages.${system} = {
         default = pkgs.buildGo127Module {
           pname = "wake-on-wan-relay";
@@ -22,6 +23,20 @@
             "-w"
             "-X wake-on-wan-relay/lib.VERSION=${version}"
           ];
+        };
+      };
+
+      devShells.${system} = {
+        default = pkgs.mkShell {
+          packages = with pkgs; [
+            go_1_27
+            gopls
+            gnumake
+            nixfmt
+          ];
+          shellHook = ''
+            			echo "Started wake-on-wan-relay Dev Shell"
+            		'';
         };
       };
 
