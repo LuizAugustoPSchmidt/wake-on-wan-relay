@@ -1,0 +1,30 @@
+name: CI
+
+# Trigger only on pull requests (when opened, reopened, or when new commits are pushed to the PR branch)
+on:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build & Test (Nix)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # GitHub-hosted Ubuntu runners do not have Nix pre-installed.
+      # This installs Nix with Flakes enabled out of the box.
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      # Caches /nix/store paths in GitHub Actions Cache automatically
+      # (no external account or secret tokens needed) to speed up subsequent runs.
+      - name: Cache Nix Store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      # `pkgs.buildGo127Module` in flake.nix runs both:
+      #   1. buildPhase: compiles `server`, `client`, and `key-gen`
+      #   2. checkPhase: executes `go test` across all Go modules in the workspace
+      # The `-L` flag prints the full build and test logs to the CI console.
+      - name: Build and run Go tests via Nix
+        run: nix build -L
