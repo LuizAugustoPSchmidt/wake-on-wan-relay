@@ -6,7 +6,7 @@
   - [ ] Test the application
   - [x] Write Android Client
   - [x] Write `flake.nix` (package + NixOS module)
-  - [ ] Add `devShells` block to `flake.nix`
+  - [x] Add `devShells` block to `flake.nix`
 
 ## Client Features
   - [ ] Add status check to native client

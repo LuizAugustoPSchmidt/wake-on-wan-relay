@@ -31,8 +31,10 @@
           packages = with pkgs; [
             go_1_27
             gopls
+	    gofumpt
             gnumake
             nixfmt
+	    nixd
           ];
           shellHook = ''
             			echo "Started wake-on-wan-relay Dev Shell"
