@@ -11,3 +11,4 @@ key.pem
 result
 result-*
 .direnv/
+.tmp
